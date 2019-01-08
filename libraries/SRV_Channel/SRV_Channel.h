@@ -18,6 +18,7 @@
 #include <AP_RCMapper/AP_RCMapper.h>
 #include <AP_Common/Bitmask.h>
 #include <AP_Volz_Protocol/AP_Volz_Protocol.h>
+#include <AP_MGM_Protocol/AP_MGM_Protocol.h>
 #include <AP_SBusOut/AP_SBusOut.h>
 #include <AP_BLHeli/AP_BLHeli.h>
 
@@ -444,6 +445,10 @@ private:
     // support for Volz protocol
     AP_Volz_Protocol volz;
     static AP_Volz_Protocol *volz_ptr;
+
+    // support for MGM protocol
+    AP_MGM_Protocol mgm;
+    static AP_MGM_Protocol *mgm_ptr;
 
     // support for SBUS protocol
     AP_SBusOut sbus;
