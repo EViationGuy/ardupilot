@@ -271,6 +271,15 @@ void AP_SerialManager::init()
                     state[i].uart->begin(map_baudrate(state[i].baud), 30, 30);
                     state[i].uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
                     break;
+                case SerialProtocol_MGM:
+                    // Note baudrate is hardcoded to 115200
+                    //state[i].baud = AP_SERIALMANAGER_MGM_BAUD;   // update baud param in case user looks at it
+                    state[i].uart->begin(map_baudrate(state[i].baud),
+                            AP_SERIALMANAGER_MGM_BUFSIZE_RX,
+                            AP_SERIALMANAGER_MGM_BUFSIZE_TX);
+                    state[i].uart->set_unbuffered_writes(true);
+                    state[i].uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
+                    break;
             }
         }
     }
