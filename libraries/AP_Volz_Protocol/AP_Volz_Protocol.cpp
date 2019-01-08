@@ -6,6 +6,7 @@
  */
 #include <AP_HAL/AP_HAL.h>
 #include <SRV_Channel/SRV_Channel.h>
+#include <GCS_MAVLink/GCS.h>
 
 #include "AP_Volz_Protocol.h"
 
@@ -47,20 +48,18 @@ void AP_Volz_Protocol::update()
         return;
     }
 
-    if (last_used_bitmask != uint32_t(bitmask.get())) {
-        update_volz_bitmask(bitmask);
-    }
-
     uint32_t now = AP_HAL::micros();
-    if (now - last_volz_update_time < volz_time_frame_micros ||
-        port->txspace() < VOLZ_DATA_FRAME_SIZE) {
+    if (now - last_volz_update_time < volz_time_frame_micros || port->txspace() < VOLZ_DATA_FRAME_SIZE) {
+        if(port->txspace() < VOLZ_DATA_FRAME_SIZE){
+            gcs().send_text(MAV_SEVERITY_CRITICAL, "VOLZ: failed sending command due to low txspace");
+        }
         return;
     }
 
     last_volz_update_time = now;
 
     uint8_t i;
-    uint16_t value;
+    uint16_t value = 0;
 
     // loop for all 16 channels
     for (i=0; i<NUM_SERVO_CHANNELS; i++) {
@@ -68,35 +67,31 @@ void AP_Volz_Protocol::update()
         if (last_used_bitmask & (1U<<i)) {
 
             SRV_Channel *ch = SRV_Channels::srv_channel(i);
+
             if (ch == nullptr) {
                 continue;
             }
             
-            // check if current channel PWM is within range
-            if (ch->get_output_pwm() < ch->get_output_min()) {
-                value = 0;
-            } else {
-                value = ch->get_output_pwm() - ch->get_output_min();
-            }
+            uint16_t pwm = ch->get_output_pwm();
 
-            // scale the PWM value to Volz value
-            value = value + VOLZ_EXTENDED_POSITION_MIN;
-            value = value * VOLZ_SCALE_VALUE / (ch->get_output_max() - ch->get_output_min());
+            if(pwm < VOLZ_PWM_MIN)
+                pwm = 0;
+            else
+                pwm = pwm - VOLZ_PWM_MIN;
 
-            // make sure value stays in range
-            if (value > VOLZ_EXTENDED_POSITION_MAX) {
-                value = VOLZ_EXTENDED_POSITION_MAX;
-            }
-
-            // prepare Volz protocol data.
             uint8_t data[VOLZ_DATA_FRAME_SIZE];
-
             data[0] = VOLZ_SET_EXTENDED_POSITION_CMD;
-            data[1] = i + 1;		// send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
+            data[1] = i + 1;        // send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
+
+            // volz_value = pwm * VOLZ_RANGE / PWM_RANGE
+            value = (uint16_t)(pwm * ((float)VOLZ_RANGE / VOLZ_PWM_RANGE));
             data[2] = HIGHBYTE(value);
             data[3] = LOWBYTE(value);
-
             send_command(data);
+            if (now - last_volz_report_time > 1000000){
+                last_volz_report_time = now;
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "VOLZ: Sent: %1d %2d %3d", data[1], data[2], data[3]);
+            }
         }
     }
 }
